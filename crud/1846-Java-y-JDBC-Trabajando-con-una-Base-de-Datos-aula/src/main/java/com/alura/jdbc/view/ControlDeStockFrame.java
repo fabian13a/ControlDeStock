@@ -18,10 +18,6 @@ import javax.swing.table.DefaultTableModel;
 import com.alura.jdbc.controller.CategoriaController;
 import com.alura.jdbc.controller.ProductoController;
 import com.alura.jdbc.modelo.Producto;
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class ControlDeStockFrame extends JFrame {
 
@@ -60,6 +56,7 @@ public class ControlDeStockFrame extends JFrame {
         modelo.addColumn("Nombre del Producto");
         modelo.addColumn("Descripción del Producto");
         modelo.addColumn("Cantidad");
+
         cargarTabla();
 
         tabla.setBounds(10, 205, 760, 280);
@@ -178,31 +175,24 @@ public class ControlDeStockFrame extends JFrame {
         return tabla.getSelectedRowCount() == 0 || tabla.getSelectedColumnCount() == 0;
     }
 
-private void modificar() {
-    if (tieneFilaElegida()) {
-        JOptionPane.showMessageDialog(this, "Por favor, elije un item");
-        return;
+    private void modificar() {
+        if (tieneFilaElegida()) {
+            JOptionPane.showMessageDialog(this, "Por favor, elije un item");
+            return;
+        }
+
+        Optional.ofNullable(modelo.getValueAt(tabla.getSelectedRow(), tabla.getSelectedColumn()))
+                .ifPresentOrElse(fila -> {
+                    Integer id = Integer.valueOf(modelo.getValueAt(tabla.getSelectedRow(), 0).toString());
+                    String nombre = (String) modelo.getValueAt(tabla.getSelectedRow(), 1);
+                    String descripcion = (String) modelo.getValueAt(tabla.getSelectedRow(), 2);
+                    Integer cantidad = Integer.valueOf(modelo.getValueAt(tabla.getSelectedRow(), 3).toString());
+                    
+                    var filasModificadas = this.productoController.modificar(nombre, descripcion, cantidad, id);
+                    
+                    JOptionPane.showMessageDialog(this, String.format("%d item modificado con éxito!", filasModificadas));
+                }, () -> JOptionPane.showMessageDialog(this, "Por favor, elije un item"));
     }
-
-    Optional.ofNullable(modelo.getValueAt(tabla.getSelectedRow(), tabla.getSelectedColumn()))
-            .ifPresentOrElse(fila -> {
-                Integer id = Integer.valueOf(modelo.getValueAt(tabla.getSelectedRow(), 0).toString());
-                String nombre = (String) modelo.getValueAt(tabla.getSelectedRow(), 1);
-                String descripcion = (String) modelo.getValueAt(tabla.getSelectedRow(), 2);
-                Integer cantidad = Integer.valueOf(modelo.getValueAt(tabla.getSelectedRow(), 3).toString());
-
-                int filasModificadas;
-
-                try {
-                    filasModificadas = this.productoController.modificar(nombre, descripcion, cantidad, id);
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                    throw new RuntimeException(e);
-                }
-
-                JOptionPane.showMessageDialog(this, String.format("%d item modificado con éxito!", filasModificadas));
-            }, () -> JOptionPane.showMessageDialog(this, "Por favor, elije un item"));
-}    
 
     private void eliminar() {
         if (tieneFilaElegida()) {
@@ -213,41 +203,28 @@ private void modificar() {
         Optional.ofNullable(modelo.getValueAt(tabla.getSelectedRow(), tabla.getSelectedColumn()))
                 .ifPresentOrElse(fila -> {
                     Integer id = Integer.valueOf(modelo.getValueAt(tabla.getSelectedRow(), 0).toString());
-                    
-                    int cantidadEliminada;
-                            
-            try {
-                cantidadEliminada  = this.productoController.eliminar(id);
-            } catch (SQLException e) {
-                throw new RuntimeException(e);                
-            }
+
+                    var filasModificadas = this.productoController.eliminar(id);
 
                     modelo.removeRow(tabla.getSelectedRow());
 
-                    JOptionPane.showMessageDialog(this, cantidadEliminada + " Item eliminado con éxito!");
+                    JOptionPane.showMessageDialog(this,
+                            String.format("%d item eliminado con éxito!", filasModificadas));
                 }, () -> JOptionPane.showMessageDialog(this, "Por favor, elije un item"));
     }
 
     private void cargarTabla() {
-        try{
         var productos = this.productoController.listar();
-        
-        try{
-              productos.forEach(producto -> modelo.addRow(new Object[] { producto.get("ID"), 
-                producto.get("NOMBRE"),
-                producto.get("DESCRIPCION"),
-                producto.get("CANTIDAD") }));
-                      
-        }catch(Exception e){
-            throw e;
-        }
-        }catch(SQLException e){
-            throw new RuntimeException(e);           
-        }    
+
+        productos.forEach(producto -> modelo.addRow(
+                new Object[] {
+                        producto.getId(),
+                        producto.getNombre(),
+                        producto.getDescripcion(),
+                        producto.getCantidad() }));
     }
 
     private void guardar() {
-        
         if (textoNombre.getText().isBlank() || textoDescripcion.getText().isBlank()) {
             JOptionPane.showMessageDialog(this, "Los campos Nombre y Descripción son requeridos.");
             return;
@@ -263,15 +240,16 @@ private void modificar() {
             return;
         }
 
+        var producto = new Producto(
+                            textoNombre.getText(),
+                            textoDescripcion.getText(),
+                            cantidadInt);
+        
         // TODO
-        var producto = new Producto(textoNombre.getText(),
-                textoDescripcion.getText(),
-                cantidadInt);
-        
         var categoria = comboCategoria.getSelectedItem();
-        
+
         this.productoController.guardar(producto);
-        
+
         JOptionPane.showMessageDialog(this, "Registrado con éxito!");
 
         this.limpiarFormulario();
